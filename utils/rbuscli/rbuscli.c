@@ -842,6 +842,7 @@ static rbusError_t method_invoke_handler(rbusHandle_t handle, char const* method
     (void)outParams;
     (void)asyncHandle;
     runSteps = __LINE__;
+	rbusValue_t value;
 	if(strcpm(methodName,"Device.SoftwareModules.ExecutionUnit.1.SetRequestedState()") == 0)
 	{
         rbusValue_Init(&value);
