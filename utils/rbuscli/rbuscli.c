@@ -838,19 +838,68 @@ rbusError_t table_remove_row_handler(rbusHandle_t handle, char const* rowName)
 static rbusError_t method_invoke_handler(rbusHandle_t handle, char const* methodName, rbusObject_t inParams, rbusObject_t outParams, rbusMethodAsyncHandle_t asyncHandle)
 {
     (void)handle;
-    (void)inParams;
-    (void)outParams;
     (void)asyncHandle;
     runSteps = __LINE__;
-	rbusValue_t value;
-	if(strcpm(methodName,"Device.SoftwareModules.ExecutionUnit.1.SetRequestedState()") == 0)
+	if(strcmp(methodName,"Device.SoftwareModules.ExecutionUnit.1.SetRequestedState()") == 0)
 	{
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, "Starting EU");
-        rbusObject_SetValue(outParams, "Ret", value);
-        rbusValue_Release(value);
-		rbusObject_fwrite(outParams, 1, stdout);
+        rbusValue_t requestedState = rbusObject_GetValue(inParams, "RequestedState");
+        if(!requestedState)
+        {
+            requestedState = rbusObject_GetValue(inParams, "value");
+	    }
+	    char const* requestedStateStr = requestedState ? rbusValue_GetString(requestedState, NULL) : NULL;
+
+
+            rbusValue_t value;
+            rbusValue_Init(&value);
+            if(requestedStateStr && strcmp(requestedStateStr, "Active") == 0)
+            {            
+                rbusValue_SetString(value, "Starting EU");
+            }
+            else if(requestedStateStr && strcmp(requestedStateStr, "Idle") == 0)
+            {            
+                rbusValue_SetString(value, "Stopping EU");
+            }
+            else
+            {
+                rbusValue_SetString(value, "Invalid State");
+            }
+            rbusObject_SetValue(outParams, "Ret", value);
+            rbusValue_Release(value);
 	}
+
+	if(strcmp(methodName,"Device.SoftwareModules.InstallDU()") == 0)
+	{
+        rbusValue_t value1;
+        rbusValue_Init(&value1);
+        rbusValue_SetString(value1, "{\"response\":\"Installation Started\"}");
+        rbusObject_SetValue(outParams, "Status", value1);
+        rbusValue_Release(value1);
+	}
+
+	if(strcmp(methodName,"Device.SoftwareModules.DeploymentUnit.1.Uninstall()") == 0)
+	{
+        rbusValue_t value1;
+        rbusValue_Init(&value1);
+        rbusValue_SetString(value1, "Uninstallation started");
+        rbusObject_SetValue(outParams, "Ret", value1);
+        rbusValue_Release(value1);
+	}
+
+	if(strcmp(methodName,"Device.WiFi.CsiData.StartStream()") == 0)
+	{
+        rbusValue_t value1,value2;
+        rbusValue_Init(&value1);
+        rbusValue_SetString(value1, "298937297127");
+        rbusObject_SetValue(outParams, "streamId", value1);
+        rbusValue_Release(value1);
+
+        rbusValue_Init(&value2);
+        rbusValue_SetString(value2, "started");
+        rbusObject_SetValue(outParams, "status", value2);
+        rbusValue_Release(value2);
+	}
+
     if(g_logEvents)
     {
         printf("Method handler called for %s\r\n", methodName);
