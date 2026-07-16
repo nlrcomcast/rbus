@@ -56,6 +56,7 @@ rtError rbusMessage_GetDouble(rbusMessage const message, double* value);
 rtError rbusMessage_SetMessage(rbusMessage message, rbusMessage const item);
 rtError rbusMessage_GetMessage(rbusMessage const message, rbusMessage* value);
 
+rtError rbusMessage_GetBytesOrString(rbusMessage message, uint8_t const** value, uint32_t *size);
 #ifdef __cplusplus
 }
 #endif

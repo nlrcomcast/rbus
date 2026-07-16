@@ -25,6 +25,10 @@ add_executable(rbus_session_mgr session_manager.c)
 add_dependencies(rbus_session_mgr rbus rbuscore)
 target_link_libraries(rbus_session_mgr rbus rbuscore)
 
+add_executable(rbusWebpaConsumer rbusWebpaConsumer.c)
+add_dependencies(rbusWebpaConsumer rbus rbuscore)
+target_link_libraries(rbusWebpaConsumer rbus rbuscore)
+
 if (BUILD_SESSIONMGR_SAMPLE_APPS)
 add_executable(rbus_session_mgr_client test/sample_client.c)
 add_dependencies(rbus_session_mgr_client rbus rbuscore)
@@ -32,6 +36,9 @@ target_link_libraries(rbus_session_mgr_client rbus rbuscore)
 endif (BUILD_SESSIONMGR_SAMPLE_APPS)
 
 install (TARGETS rbus_session_mgr
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+install (TARGETS rbusWebpaConsumer
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 install(FILES rbus_session_mgr.h DESTINATION "include/rbus")

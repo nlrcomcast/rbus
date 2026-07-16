@@ -287,6 +287,27 @@ void rbusMessage_EndMetaSectionRead(rbusMessage message)
     message->read_offset = message->meta_offset;
 }
 
+rtError rbusMessage_GetBytesOrString(rbusMessage message, uint8_t const** value, uint32_t* size)
+{
+    VERIFY_UNPACK_NEXT_ITEM();
+    if(message->upk.data.type == MSGPACK_OBJECT_BIN)
+    {
+        *size = message->upk.data.via.bin.size;
+        *value = (uint8_t const*)message->upk.data.via.bin.ptr;
+        RBUSCORELOG_INFO("%s decoded payload as msgpack BIN (size=%u)", __FUNCTION__, *size);
+        return RT_OK;
+    }
+    else if(message->upk.data.type == MSGPACK_OBJECT_STR)
+    {
+        *size = message->upk.data.via.str.size;
+        *value = (uint8_t const*)message->upk.data.via.str.ptr;
+        RBUSCORELOG_INFO("%s decoded payload as msgpack STR (size=%u)", __FUNCTION__, *size);
+        return RT_OK;
+    }
+    RBUSCORELOG_DEBUG("%s unexpected data type %d", __FUNCTION__, message->upk.data.type);
+    return RT_FAIL;
+}
+
 #if 0
 
 #define VERIFY(T)\
