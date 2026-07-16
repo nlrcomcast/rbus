@@ -495,6 +495,11 @@ void rbusEventData_appendToMessage(rbusEvent_t* event, rbusFilter_t filter, uint
 void rbusFilter_AppendToMessage(rbusFilter_t filter, rbusMessage msg);
 void rbusFilter_InitFromMessage(rbusFilter_t* filter, rbusMessage msg);
 
+rbusError_t rbusValue_initFromMessage_debug(rbusValue_t* value, rbusMessage msg, int depth);
+rbusError_t rbusProperty_initFromMessage_debug(rbusProperty_t* property, rbusMessage msg, int depth);
+void rbusPropertyList_initFromMessage_debug(rbusProperty_t* prop, rbusMessage msg, int depth);
+void rbusObject_initFromMessage_debug(rbusObject_t* obj, rbusMessage msg, int depth);
+
 rbusError_t rbusValue_initFromMessage(rbusValue_t* value, rbusMessage msg)
 {
     uint8_t const* data;
@@ -759,6 +764,228 @@ void rbusObject_initFromMessage(rbusObject_t* obj, rbusMessage msg)
     rbusObject_Release(children);
 }
 
+/* ================= DEBUG deserialization chain (logging) ================= */
+
+rbusError_t rbusValue_initFromMessage_debug(rbusValue_t* value, rbusMessage msg, int depth)
+{
+    uint8_t const* data;
+    bool rc = true;
+    uint32_t length;
+    int type;
+    char const* pBuffer = NULL;
+
+    if (!value)
+    {
+        RBUSLOG_ERROR("[DBG] rbusValue_initFromMessage_debug: value is NULL");
+        return RBUS_ERROR_INVALID_INPUT;
+    }
+
+    rbusValue_Init(value);
+
+    rbusMessage_GetInt32(msg, (int*) &type);
+    RBUSLOG_INFO("[DBG][d%d] value: popped type=%d", depth, type);
+
+    if(type>=RBUS_LEGACY_STRING && type<=RBUS_LEGACY_NONE)
+    {
+        rbusMessage_GetString(msg, &pBuffer);
+        RBUSLOG_INFO("[DBG][d%d] value: legacy-string=[%s]", depth, pBuffer ? pBuffer : "(null)");
+        rc = _parse_rbusData_to_value (pBuffer, type, *value);
+        if(!rc)
+        {
+            RBUSLOG_ERROR("[DBG][d%d] value: _parse_rbusData_to_value FAILED (RBUS_ERROR_INVALID_INPUT)", depth);
+            return RBUS_ERROR_INVALID_INPUT;
+        }
+    }
+    else
+    {
+        if(type == RBUS_OBJECT)
+        {
+            RBUSLOG_INFO("[DBG][d%d] value: nested RBUS_OBJECT -> recurse", depth);
+            rbusObject_t obj;
+            rbusObject_initFromMessage_debug(&obj, msg, depth+1);
+            rbusValue_SetObject(*value, obj);
+            rbusObject_Release(obj);
+        }
+        else if(type == RBUS_PROPERTY)
+        {
+            RBUSLOG_INFO("[DBG][d%d] value: nested RBUS_PROPERTY -> recurse", depth);
+            rbusProperty_t prop;
+            rbusPropertyList_initFromMessage_debug(&prop, msg, depth+1);
+            rbusValue_SetProperty(*value, prop);
+            rbusProperty_Release(prop);
+        }
+        else
+        {
+            int32_t ival;
+            int64_t i64;
+            double fval;
+
+            switch(type)
+            {
+                case RBUS_INT16:
+                    rbusMessage_GetInt32(msg, &ival);
+                    rbusValue_SetInt16(*value, (int16_t)ival);
+                    RBUSLOG_INFO("[DBG][d%d] value: INT16=%d", depth, (int16_t)ival);
+                    break;
+                case RBUS_UINT16:
+                    rbusMessage_GetInt32(msg, &ival);
+                    rbusValue_SetUInt16(*value, (uint16_t)ival);
+                    RBUSLOG_INFO("[DBG][d%d] value: UINT16=%u", depth, (uint16_t)ival);
+                    break;
+                case RBUS_INT32:
+                    rbusMessage_GetInt32(msg, &ival);
+                    rbusValue_SetInt32(*value, (int32_t)ival);
+                    RBUSLOG_INFO("[DBG][d%d] value: INT32=%d", depth, (int32_t)ival);
+                    break;
+                case RBUS_UINT32:
+                    rbusMessage_GetInt32(msg, &ival);
+                    rbusValue_SetUInt32(*value, (uint32_t)ival);
+                    RBUSLOG_INFO("[DBG][d%d] value: UINT32=%u", depth, (uint32_t)ival);
+                    break;
+                case RBUS_INT64:
+                    rbusMessage_GetInt64(msg, &i64);
+                    rbusValue_SetInt64(*value, (int64_t)i64);
+                    RBUSLOG_INFO("[DBG][d%d] value: INT64=%lld", depth, (long long)i64);
+                    break;
+                case RBUS_UINT64:
+                    rbusMessage_GetInt64(msg, &i64);
+                    rbusValue_SetUInt64(*value, (uint64_t)i64);
+                    RBUSLOG_INFO("[DBG][d%d] value: UINT64=%llu", depth, (unsigned long long)i64);
+                    break;
+                case RBUS_SINGLE:
+                    rbusMessage_GetDouble(msg, &fval);
+                    rbusValue_SetSingle(*value, (float)fval);
+                    RBUSLOG_INFO("[DBG][d%d] value: SINGLE=%f", depth, (float)fval);
+                    break;
+                case RBUS_DOUBLE:
+                    rbusMessage_GetDouble(msg, &fval);
+                    rbusValue_SetDouble(*value, (double)fval);
+                    RBUSLOG_INFO("[DBG][d%d] value: DOUBLE=%f", depth, (double)fval);
+                    break;
+                case RBUS_DATETIME:
+                    rbusMessage_GetBytes(msg, &data, &length);
+                    rbusValue_SetTLV(*value, type, length, data);
+                    RBUSLOG_INFO("[DBG][d%d] value: DATETIME length=%u", depth, length);
+                    break;
+                default:
+                    data = NULL;
+                    length = 0;
+                    if(rbusMessage_GetBytesOrString(msg, &data, &length) == RT_OK && data)
+                    {
+                        rbusValue_SetTLV(*value, type, length, data);
+                        if(type == RBUS_STRING)
+                            RBUSLOG_INFO("[DBG][d%d] value: type=%d STRING length=%u value='%.*s'",
+                                depth, type, length, (int)length, (const char*)data);
+                        else
+                            RBUSLOG_INFO("[DBG][d%d] value: type=%d decoded bytes length=%u",
+                                depth, type, length);
+                    }
+                    else
+                    {
+                        RBUSLOG_ERROR("[DBG][d%d] value: type=%d DECODE FAILED - value left EMPTY (data=%p length=%u)",
+                            depth, type, (void*)data, length);
+                    }
+                    break;
+            }
+        }
+    }
+
+    {
+        char* sv = rbusValue_ToString(*value,0,0);
+        RBUSLOG_INFO("[DBG][d%d] value: final ToString='%s'", depth, sv ? sv : "(null)");
+        if(sv) free(sv);
+    }
+    return RBUS_ERROR_SUCCESS;
+}
+
+rbusError_t rbusProperty_initFromMessage_debug(rbusProperty_t* property, rbusMessage msg, int depth)
+{
+    char const* name;
+    rbusValue_t value;
+    rbusError_t err = RBUS_ERROR_SUCCESS;
+
+    rbusMessage_GetString(msg, (char const**) &name);
+    RBUSLOG_INFO("[DBG][d%d] prop: popped name=%s", depth, name ? name : "(null)");
+
+    if (!property)
+    {
+        RBUSLOG_ERROR("[DBG] rbusProperty_initFromMessage_debug: property is NULL");
+        return RBUS_ERROR_INVALID_INPUT;
+    }
+
+    rbusProperty_Init(property, name, NULL);
+    err = rbusValue_initFromMessage_debug(&value, msg, depth);
+    rbusProperty_SetValue(*property, value);
+    rbusValue_Release(value);
+    RBUSLOG_INFO("[DBG][d%d] prop: name=%s value-init err=%d", depth, name ? name : "(null)", err);
+    return err;
+}
+
+void rbusPropertyList_initFromMessage_debug(rbusProperty_t* prop, rbusMessage msg, int depth)
+{
+    rbusProperty_t previous = NULL, first = NULL;
+    int numProps = 0;
+    rbusMessage_GetInt32(msg, (int*) &numProps);
+    RBUSLOG_INFO("[DBG][d%d] propList: numProps=%d", depth, numProps);
+    while(--numProps >= 0)
+    {
+        rbusProperty_t nextProp;
+        rbusProperty_initFromMessage_debug(&nextProp, msg, depth);
+        if(first == NULL)
+            first = nextProp;
+        if(previous != NULL)
+        {
+            rbusProperty_SetNext(previous, nextProp);
+            rbusProperty_Release(nextProp);
+        }
+        previous = nextProp;
+    }
+    *prop = first;
+}
+
+void rbusObject_initFromMessage_debug(rbusObject_t* obj, rbusMessage msg, int depth)
+{
+    char const* name = NULL;
+    int type = 0;
+    int numChild = 0;
+    rbusProperty_t prop;
+    rbusObject_t children=NULL, previous=NULL;
+
+    rbusMessage_GetString(msg, &name);
+    rbusMessage_GetInt32(msg, &type);
+    RBUSLOG_INFO("[DBG][d%d] object: name=%s type=%d", depth, name ? name : "(null)", type);
+
+    rbusPropertyList_initFromMessage_debug(&prop, msg, depth);
+
+    rbusMessage_GetInt32(msg, &numChild);
+    RBUSLOG_INFO("[DBG][d%d] object: numChild=%d", depth, numChild);
+
+    while(--numChild >= 0)
+    {
+        rbusObject_t next;
+        rbusObject_initFromMessage_debug(&next, msg, depth+1);
+        if(children == NULL)
+            children = next;
+        if(previous != NULL)
+        {
+            rbusObject_SetNext(previous, next);
+            rbusObject_Release(next);
+        }
+        previous = next;
+    }
+
+    if(type == RBUS_OBJECT_MULTI_INSTANCE)
+        rbusObject_InitMultiInstance(obj, name);
+    else
+        rbusObject_Init(obj, name);
+
+    rbusObject_SetProperties(*obj, prop);
+    rbusProperty_Release(prop);
+    rbusObject_SetChildren(*obj, children);
+    rbusObject_Release(children);
+    RBUSLOG_INFO("[DBG][d%d] object: init complete name=%s", depth, name ? name : "(null)");
+}
+/*======================================================*/
 void rbusValue_appendToMessage(char const* name, rbusValue_t value, rbusMessage msg)
 {
     rbusValueType_t type = RBUS_NONE;
@@ -6079,6 +6306,18 @@ rbusError_t  rbusEvent_Publish(
     return errOut == RBUSCORE_SUCCESS ? RBUS_ERROR_SUCCESS: RBUS_ERROR_BUS_ERROR;
 }
 
+static int rbusMethod_isDebugMethod(char const* methodName)
+{
+    if(!methodName)
+        return 0;
+    return (strstr(methodName, "Device.SoftwareModules") != NULL ||
+            strstr(methodName, "SetRequestedState")      != NULL ||
+            strstr(methodName, "InstallDU")              != NULL ||
+            strstr(methodName, "Uninstall")              != NULL ||
+            strstr(methodName, "SetRunLevel")            != NULL ||
+            strstr(methodName, "Update")                 != NULL);
+}
+
 rbusError_t rbusMethod_InvokeInternal(
     rbusHandle_t handle,
     char const* methodName,
@@ -6145,7 +6384,19 @@ rbusError_t rbusMethod_InvokeInternal(
     rbusMessage_GetInt32(response, &returnCode);
     legacyRetCode = (rbusLegacyReturn_t)returnCode;
 
-    rbusObject_initFromMessage(outParams, response);
+    /* Debugging */
+    if(rbusMethod_isDebugMethod(methodName))
+    {
+        RBUSLOG_INFO("[DBG] ===== decoding outParams for method '%s' via debug parser (returnCode=%d) =====",
+            methodName, returnCode);
+        rbusObject_initFromMessage_debug(outParams, response, 0);
+        RBUSLOG_INFO("[DBG] ===== finished decoding outParams for method '%s' =====", methodName);
+    }
+    else
+    {
+        rbusObject_initFromMessage(outParams, response);
+    }
+
     if(legacyRetCode > RBUS_LEGACY_ERR_SUCCESS)
     {
         returnCode = CCSPError_to_rbusError(legacyRetCode);
