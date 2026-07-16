@@ -2783,6 +2783,30 @@ static int _method_callback_handler(rbusHandle_t handle, rbusMessage request, rb
         rbusObject_SetValue(outParams, "error_string", value2);
     }
 
+                if((strcmp(methodName,"Device.SoftwareModules.ExecutionUnit.1.SetRequestedState()") == 0) || 
+                    (strcmp(methodName,"Device.SoftwareModules.InstallDU()") == 0))
+                {
+                        FILE *tmpOut = fopen("/tmp/rbus_callback_method_inParams.txt", "a+");
+                        if(tmpOut != NULL)
+                        {
+                                fprintf(tmpOut, "_method_callback_handler inParams: %s\n", methodName);
+                                rbusObject_fwrite(inParams, 1, tmpOut);
+                                fclose(tmpOut);
+                        }
+                }
+
+                if((strcmp(methodName,"Device.SoftwareModules.ExecutionUnit.1.SetRequestedState()") == 0) || 
+                    (strcmp(methodName,"Device.SoftwareModules.InstallDU()") == 0))
+                {
+                        FILE *tmpOut = fopen("/tmp/rbus_callback_method_outParams.txt", "a+");
+                        if(tmpOut != NULL)
+                        {
+                                fprintf(tmpOut, "_method_callback_handler outParams: %s\n", methodName);
+                                rbusObject_fwrite(outParams, 1, tmpOut);
+                                fclose(tmpOut);
+                        }
+                }                
+
     if (inParams)
         rbusObject_Release(inParams);
     rbusValue_Release(value1);
@@ -6338,7 +6362,17 @@ rbusError_t rbusMethod_InvokeInternal(
     VERIFY_NULL(outParams);
 
     RBUSLOG_DEBUG("Method_InvokeInternal: %s", methodName);
-
+                if((strcmp(methodName,"Device.SoftwareModules.ExecutionUnit.1.SetRequestedState()") == 0) || 
+                    (strcmp(methodName,"Device.SoftwareModules.InstallDU()") == 0))
+                {
+                        FILE *tmpOut = fopen("/tmp/rbus_method_inParams.txt", "a+");
+                        if(tmpOut != NULL)
+                        {
+                                fprintf(tmpOut, "rbusMethod_InvokeInternal Message methodName: %s\n",methodName);
+                                rbusObject_fwrite(inParams, 1, tmpOut);
+                                fclose(tmpOut);
+                        }
+                }
     rbusMessage_Init(&request);
     rbusMessage_SetInt32(request, 0);/*TODO: this should be the session ID*/
     rbusMessage_SetString(request, methodName); /*TODO: do we need to append the name as well as pass the name as the 1st arg to rbus_invokeRemoteMethod2 ?*/
