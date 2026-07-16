@@ -287,6 +287,24 @@ void rbusMessage_EndMetaSectionRead(rbusMessage message)
     message->read_offset = message->meta_offset;
 }
 
+ /* Debugging */
+#define RBUS_DBG_LOG_FILE "/tmp/rbus_decode_debug.log"
+
+static void rbusCoreDbgFileLog(const char* fmt, ...)
+{
+    FILE* fp = fopen(RBUS_DBG_LOG_FILE, "a");
+    if(!fp)
+        return;
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(fp, fmt, args);
+    va_end(args);
+    fputc('\n', fp);
+    fclose(fp);
+}
+
+#define DBG_CORE_LOG_INFO(fmt, ...) do { RBUSCORELOG_INFO(fmt, ##__VA_ARGS__); rbusCoreDbgFileLog(fmt, ##__VA_ARGS__); } while(0)
+
 rtError rbusMessage_GetBytesOrString(rbusMessage message, uint8_t const** value, uint32_t* size)
 {
     VERIFY_UNPACK_NEXT_ITEM();
@@ -294,20 +312,19 @@ rtError rbusMessage_GetBytesOrString(rbusMessage message, uint8_t const** value,
     {
         *size = message->upk.data.via.bin.size;
         *value = (uint8_t const*)message->upk.data.via.bin.ptr;
-        RBUSCORELOG_INFO("%s decoded payload as msgpack BIN (size=%u)", __FUNCTION__, *size);
+        DBG_CORE_LOG_INFO("[DBG] %s decoded payload as msgpack BIN (size=%u)", __FUNCTION__, *size);
         return RT_OK;
     }
     else if(message->upk.data.type == MSGPACK_OBJECT_STR)
     {
         *size = message->upk.data.via.str.size;
         *value = (uint8_t const*)message->upk.data.via.str.ptr;
-        RBUSCORELOG_INFO("%s decoded payload as msgpack STR (size=%u)", __FUNCTION__, *size);
+        DBG_CORE_LOG_INFO("[DBG] %s decoded payload as msgpack STR (size=%u)", __FUNCTION__, *size);
         return RT_OK;
     }
     RBUSCORELOG_DEBUG("%s unexpected data type %d", __FUNCTION__, message->upk.data.type);
     return RT_FAIL;
 }
-
 #if 0
 
 #define VERIFY(T)\
