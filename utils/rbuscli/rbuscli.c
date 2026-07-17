@@ -842,6 +842,15 @@ static rbusError_t method_invoke_handler(rbusHandle_t handle, char const* method
     (void)outParams;
     (void)asyncHandle;
     runSteps = __LINE__;
+	rbusValue_t value;
+	if(strcmp(methodName,"Device.SoftwareModules.ExecutionUnit.1.SetRequestedState1()") == 0)
+	{
+        rbusValue_Init(&value);
+        rbusValue_SetString(value, "Starting EU");
+        rbusObject_SetValue(outParams, "Ret", value);
+        rbusValue_Release(value);
+		rbusObject_fwrite(outParams, 1, stdout);
+	}	
     if(g_logEvents)
     {
         printf("Method handler called for %s\r\n", methodName);
